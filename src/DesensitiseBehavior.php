@@ -32,7 +32,7 @@ class DesensitiseBehavior extends Behavior
         $desensitiseMapping = $sender->getAttributes(array_keys($this->config));
 
         $desensitiseAttributes = [];
-        $encryptData            = [];
+        $encryptData = [];
 
         foreach ($desensitiseMapping as $attribute => $value) {
             $value = trim((string)$value);
@@ -52,8 +52,8 @@ class DesensitiseBehavior extends Behavior
                 $sender->setAttribute($attribute, ArrayHelper::getValue($result, [$i, 'hash']));
             }
         } else {
-            Yii::$app->getSession()->setFlash('error', '脱敏失败: ' . $desensitise->getError());
             $event->isValid = false;
+            throw new EncryptException('脱敏失败: ' . $desensitise->getError());
         }
     }
 
@@ -66,19 +66,19 @@ class DesensitiseBehavior extends Behavior
     public function decrypt($plain = true)
     {
         /** @var ActiveRecord $sender */
-        $sender     = $this->owner;
+        $sender = $this->owner;
         $attributes = $sender->getAttributes(array_keys($this->config));
         $attributes = array_filter($attributes);
 
         /** @var Desensitise $desensitise */
         $desensitise = Yii::$app->get('desensitise');
-        $result      = $desensitise->decrypt(array_values($attributes), $plain);
+        $result = $desensitise->decrypt(array_values($attributes), $plain);
         if (!$result) {
             throw new UserException($desensitise->getError());
         }
 
-        foreach ($attributes as $field => $ciphertext) {
-            $sender->setAttribute($field, ArrayHelper::getValue($result, $ciphertext));
+        foreach ($attributes as $field => $cipherText) {
+            $sender->setAttribute($field, ArrayHelper::getValue($result, $cipherText));
         }
     }
 }
