@@ -78,17 +78,16 @@ class Desensitise extends RequestClient
     /**
      * @param string $reference
      *
-     * @return Desensitized|object
+     * @return Desensitise|object
      * @throws InvalidConfigException
      */
     protected static function getHandler($reference = null)
     {
         if (null === $reference) {
-            $reference = 'desensitized';
+            $reference = 'desensitise';
         }
 
-        /** @var Desensitized $desensitized */
-        return Instance::ensure($reference, Desensitized::class);
+        return Instance::ensure($reference, Desensitise::class);
     }
 
     /**

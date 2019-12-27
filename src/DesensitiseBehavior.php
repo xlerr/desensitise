@@ -4,6 +4,7 @@ namespace xlerr\desensitise;
 
 use Yii;
 use yii\base\Behavior;
+use yii\base\InvalidConfigException;
 use yii\base\ModelEvent;
 use yii\base\UserException;
 use yii\db\ActiveRecord;
@@ -24,6 +25,11 @@ class DesensitiseBehavior extends Behavior
         ];
     }
 
+    /**
+     * @param ModelEvent $event
+     * @throws EncryptException
+     * @throws InvalidConfigException
+     */
     public function encrypt(ModelEvent $event)
     {
         /** @var ActiveRecord $sender */
@@ -61,7 +67,7 @@ class DesensitiseBehavior extends Behavior
      * @param bool $plain
      *
      * @throws UserException
-     * @throws \yii\base\InvalidConfigException
+     * @throws InvalidConfigException
      */
     public function decrypt($plain = true)
     {
