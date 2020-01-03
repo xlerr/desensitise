@@ -61,13 +61,13 @@ class Desensitise extends RequestClient
      */
     public static function execDecrypt(string $hash, bool $plain = false, $reference = null)
     {
-        $desensitized = self::getHandler($reference);
+        $desensitise = self::getHandler($reference);
 
-        if (false === ($result = $desensitized->decrypt($hash, $plain))) {
+        if (false === ($result = $desensitise->decrypt($hash, $plain))) {
             Yii::$app->getSession()->setFlash('warning', vsprintf('%s: %s >>> %s', [
                 __METHOD__,
                 $hash,
-                $desensitized->getError(),
+                $desensitise->getError(),
             ]));
         } else {
             return ArrayHelper::getValue($result, $hash);
