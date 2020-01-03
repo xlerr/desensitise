@@ -11,7 +11,6 @@ use xlerr\httpca\RequestClient;
 
 /**
  * Class Desensitized
- *
  * @package common\components
  */
 class Desensitise extends RequestClient
@@ -24,28 +23,29 @@ class Desensitise extends RequestClient
     const TYPE_ADDRESS          = 6; // 地址
 
     /**
-     * @param string            $plain
-     * @param int               $type
-     * @param int               $expire
-     * @param array|string      $path
-     * @param null|array|string $reference
-     *
+     * @param string $plain
+     * @param int $type
+     * @param array $options
      * @return mixed
      * @throws InvalidConfigException
      */
-    public static function execEncrypt(string $plain, int $type, int $expire = 0, $path = [0], $reference = null)
+    public static function execEncrypt(string $plain, int $type, array $options = [])
     {
-        $desensitized = self::getHandler($reference);
+        $expire    = ArrayHelper::getValue($options, 'expire', 0);
+        $path      = ArrayHelper::getValue($options, 'path', 0);
+        $reference = ArrayHelper::getValue($options, 'reference');
+
+        $desensitise = self::getHandler($reference);
 
         $data = [
             [$plain, $type],
         ];
 
-        if (false === ($result = $desensitized->encrypt($data, $expire))) {
+        if (false === ($result = $desensitise->encrypt($data, $expire))) {
             Yii::$app->getSession()->setFlash('warning', vsprintf('%s: %s >>> %s', [
                 __METHOD__,
                 $plain,
-                $desensitized->getError(),
+                $desensitise->getError(),
             ]));
         }
 
@@ -53,10 +53,9 @@ class Desensitise extends RequestClient
     }
 
     /**
-     * @param string            $hash
-     * @param bool              $plain
+     * @param string $hash
+     * @param bool $plain
      * @param null|array|string $reference
-     *
      * @return mixed
      * @throws InvalidConfigException
      */
@@ -77,7 +76,6 @@ class Desensitise extends RequestClient
 
     /**
      * @param string $reference
-     *
      * @return Desensitise|object
      * @throws InvalidConfigException
      */
@@ -92,10 +90,8 @@ class Desensitise extends RequestClient
 
     /**
      * 加密
-     *
      * @param array $data [plain => type]
-     * @param int   $expire
-     *
+     * @param int $expire
      * @return array|bool|false
      * @example
      *  request data: [['62302123512929589', 1]]
@@ -128,15 +124,13 @@ class Desensitise extends RequestClient
 
     /**
      * 解码
-     *
      * @param mixed $data
-     * @param bool  $plain
-     *
+     * @param bool $plain
      * @return bool|mixed|null
      */
     public function decrypt($data, $plain = false)
     {
-        $data = (array)$data;
+        $data = (array) $data;
         foreach ($data as &$hash) {
             $hash = compact('hash');
         }
@@ -157,8 +151,7 @@ class Desensitise extends RequestClient
 
     /**
      * @param array $data [['type'  => 1, 'plain' => '62302123512929589'], ['type'  => 5, 'plain' => 'xlerr@qq.com'],]
-     * @param int   $expire
-     *
+     * @param int $expire
      * @return bool
      */
     public function doEncrypt(array $data, int $expire = 0)
@@ -175,8 +168,7 @@ class Desensitise extends RequestClient
 
     /**
      * @param array $data [['hash' => 'enc_01_803680_269'], ['hash' => 'enc_05_12448700_154']]
-     * @param bool  $plain
-     *
+     * @param bool $plain
      * @return bool
      */
     public function doDecrypt(array $data, $plain = false)
