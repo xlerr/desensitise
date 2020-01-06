@@ -51,15 +51,17 @@ class DesensitiseBehavior extends Behavior
             $encryptData[] = [$value, $this->config[$attribute]];
         }
 
-        /** @var Desensitise $desensitise */
-        $desensitise = Yii::$app->get('desensitise');
-        if ($result = $desensitise->encrypt($encryptData)) {
-            foreach ($desensitiseAttributes as $i => $attribute) {
-                $sender->setAttribute($attribute, ArrayHelper::getValue($result, [$i, 'hash']));
+        if (!empty($encryptData)) {
+            /** @var Desensitise $desensitise */
+            $desensitise = Yii::$app->get('desensitise');
+            if ($result = $desensitise->encrypt($encryptData)) {
+                foreach ($desensitiseAttributes as $i => $attribute) {
+                    $sender->setAttribute($attribute, ArrayHelper::getValue($result, [$i, 'hash']));
+                }
+            } else {
+                $event->isValid = false;
+                throw new EncryptException('脱敏失败: ' . $desensitise->getError());
             }
-        } else {
-            $event->isValid = false;
-            throw new EncryptException('脱敏失败: ' . $desensitise->getError());
         }
     }
 
@@ -76,15 +78,17 @@ class DesensitiseBehavior extends Behavior
         $attributes = $sender->getAttributes(array_keys($this->config));
         $attributes = array_filter($attributes);
 
-        /** @var Desensitise $desensitise */
-        $desensitise = Yii::$app->get('desensitise');
-        $result = $desensitise->decrypt(array_values($attributes), $plain);
-        if (!$result) {
-            throw new UserException($desensitise->getError());
-        }
+        if (!empty($attributes)) {
+            /** @var Desensitise $desensitise */
+            $desensitise = Yii::$app->get('desensitise');
+            $result      = $desensitise->decrypt(array_values($attributes), $plain);
+            if (!$result) {
+                throw new UserException($desensitise->getError());
+            }
 
-        foreach ($attributes as $field => $cipherText) {
-            $sender->setAttribute($field, ArrayHelper::getValue($result, $cipherText));
+            foreach ($attributes as $field => $cipherText) {
+                $sender->setAttribute($field, ArrayHelper::getValue($result, $cipherText));
+            }
         }
     }
 }
