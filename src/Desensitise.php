@@ -112,7 +112,7 @@ class Desensitise extends RequestClient
         $data = array_chunk($data, 10);
         foreach ($data as $chunkData) {
             if ($this->doEncrypt($chunkData, $expire)) {
-                $responseData += $this->getData();
+                $responseData = array_merge($responseData, $this->getData());
                 continue;
             }
 
@@ -139,7 +139,7 @@ class Desensitise extends RequestClient
         $data         = array_chunk($data, 10);
         foreach ($data as $chunkData) {
             if ($this->doDecrypt($chunkData, $plain)) {
-                $responseData += $this->getData();
+                $responseData = array_merge($responseData, $this->getData());
                 continue;
             }
 
