@@ -35,7 +35,7 @@ class DesensitiseBehavior extends Behavior
         /** @var ActiveRecord $sender */
         $sender = $event->sender;
 
-        $desensitiseMapping = $sender->getAttributes(array_keys($this->config));
+        $desensitiseMapping = array_intersect_key($sender->getDirtyAttributes(), $this->config);
 
         $desensitiseAttributes = [];
         $encryptData = [];
