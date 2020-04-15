@@ -9,6 +9,6 @@ class DesensitiseColumn extends \yii\grid\DataColumn
     public function getDataCellValue($model, $key, $index)
     {
         $value = parent::getDataCellValue($model, $key, $index);
-        return DesensitizedWidget::decrypt($value);
+        return DesensitiseWidget::decrypt($value);
     }
 }
