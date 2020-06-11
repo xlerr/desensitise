@@ -2,74 +2,56 @@
 
 namespace xlerr\desensitise;
 
-use xlerr\httpca\RequestClient;
 use Yii;
 use yii\base\Widget;
-use yii\di\Instance;
-use yii\helpers\Json;
 
 class DesensitiseWidget extends Widget
 {
-    /**
-     * @var Desensitise
-     */
-    public $desensitise = 'desensitise';
-
-    /**
-     * @var bool
-     */
-    public $plain = false;
-
     public static $decryptList = [];
 
-    public static function decrypt($data)
-    {
-        if (empty($data)) {
-            return $data;
-        }
-
-        array_push(self::$decryptList, $data);
-
-        return sprintf('<span class="desensitization" data-dck="%s">%s</span>', $data, $data);
-    }
-
     /**
-     * @throws \yii\base\InvalidConfigException
+     * @param string $hash
+     * @param bool   $plain
+     *
+     * @return string
      */
-    public function init()
+    public static function decrypt($hash, bool $plain = false)
     {
-        if (is_string($this->desensitise)) {
-            $this->desensitise = Instance::ensure($this->desensitise, RequestClient::class);
+        if (empty($hash)) {
+            return $hash;
         }
 
-        parent::init();
+        self::$decryptList[$plain][] = $hash;
+
+        return sprintf('<span class="desensitization" data-dck="%s" data-plain="%d">%s</span>', $hash, $plain, $hash);
     }
 
     public function run()
     {
-        $dcs = '[]';
+        $result = [[], []];
         if (!empty(self::$decryptList)) {
-            if ($decryption = $this->desensitise->decrypt(self::$decryptList, $this->plain)) {
-                $dcs = Json::encode($decryption);
-            } else {
-                Yii::$app->getSession()->setFlash('warning', '<b>[脱敏]</b> ' . $this->desensitise->getError());
+            foreach (self::$decryptList as $plain => $data) {
+                $result[$plain] += Desensitise::instance()->decrypt($data, $plain, function ($response) {
+                    Yii::$app->getSession()->addFlash('warning', '<b>[脱敏]</b> ' . $response['message']);
+                });
             }
         }
+        $result = json_encode($result, JSON_UNESCAPED_UNICODE);
 
         $js = <<<EOF
 (function ($) {
-    let dcs = $dcs;
+    const dcs = $result;
     $('span.desensitization').each(function () {
-        let dck = $(this).data('dck');
-        if (undefined !== dcs[dck]) {
-            $(this).text(dcs[dck]);
+        const self = $(this);
+        let dck = self.data('dck'),
+            plain = self.data('plain');
+        if (undefined !== dcs[plain] && undefined !== dcs[plain][dck]) {
+            self.text(dcs[plain][dck]);
         }
     });
 })(jQuery);
 EOF;
         $this->getView()->registerJs($js);
-
-        return '';
     }
 
     public function afterRun($result)

@@ -2,9 +2,22 @@
 
 namespace xlerr\desensitise;
 
-use yii\base\UserException;
+use Exception;
 
-class EncryptException extends UserException
+class EncryptException extends Exception
 {
+    /**
+     * @return string
+     */
+    public function getName()
+    {
+        return 'Encrypt Exception';
+    }
 
+    public static function throwFunc()
+    {
+        return function ($response) {
+            throw new self($response['message']);
+        };
+    }
 }

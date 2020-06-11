@@ -2,19 +2,23 @@
 
 namespace xlerr\desensitise;
 
+use GuzzleHttp\Exception\RequestException;
+use GuzzleHttp\Pool;
+use GuzzleHttp\Psr7\Response;
 use GuzzleHttp\RequestOptions;
-use Yii;
-use yii\base\InvalidConfigException;
-use yii\di\Instance;
-use yii\helpers\ArrayHelper;
+use xlerr\httpca\ComponentTrait;
 use xlerr\httpca\RequestClient;
+use yii\base\InvalidConfigException;
 
 /**
  * Class Desensitized
+ *
  * @package common\components
  */
 class Desensitise extends RequestClient
 {
+    use ComponentTrait;
+
     const TYPE_PHONE_NUMBER     = 1; // 手机号
     const TYPE_IDENTITY_NUMBER  = 2; // 身份证号
     const TYPE_BANK_CARD_NUMBER = 3; // 银行卡号
@@ -23,163 +27,158 @@ class Desensitise extends RequestClient
     const TYPE_ADDRESS          = 6; // 地址
 
     /**
-     * @param string $plain
-     * @param int $type
-     * @param array $options
+     * @param string    $plain
+     * @param int       $type
+     * @param bool|null $hash
+     * @param int       $expire
+     * @param callable  $rejected
+     *
      * @return mixed
      * @throws InvalidConfigException
      */
-    public static function execEncrypt(string $plain, int $type, array $options = [])
+    public function execEncrypt(string $plain, int $type, bool $hash = null, int $expire = 0, callable $rejected = null)
     {
-        $expire    = ArrayHelper::getValue($options, 'expire', 0);
-        $path      = ArrayHelper::getValue($options, 'path', 0);
-        $reference = ArrayHelper::getValue($options, 'reference');
-
-        $desensitise = self::getHandler($reference);
-
         $data = [
             [$plain, $type],
         ];
 
-        if (false === ($result = $desensitise->encrypt($data, $expire))) {
-            Yii::$app->getSession()->setFlash('warning', vsprintf('%s: %s >>> %s', [
-                __METHOD__,
-                $plain,
-                $desensitise->getError(),
-            ]));
-        }
+        $result = $this->encrypt($data, $expire, $rejected ?? EncryptException::throwFunc());
+        $result = $result[0] ?? [];
 
-        return ArrayHelper::getValue($result, $path);
+        if (null === $hash) {
+            return $result;
+        } elseif ($hash) {
+            return $result['hash'] ?? false;
+        } else {
+            return $result['plain_text'] ?? false;
+        }
     }
 
     /**
-     * @param string $hash
-     * @param bool $plain
-     * @param null|array|string $reference
+     * @param string   $hash
+     * @param bool     $plain
+     * @param callable $rejected
+     *
      * @return mixed
      * @throws InvalidConfigException
      */
-    public static function execDecrypt(string $hash, bool $plain = false, $reference = null)
+    public function execDecrypt(string $hash, bool $plain = false, callable $rejected = null)
     {
-        $desensitise = self::getHandler($reference);
+        $result = $this->decrypt($hash, $plain, $rejected ?? EncryptException::throwFunc());
 
-        if (false === ($result = $desensitise->decrypt($hash, $plain))) {
-            Yii::$app->getSession()->setFlash('warning', vsprintf('%s: %s >>> %s', [
-                __METHOD__,
-                $hash,
-                $desensitise->getError(),
-            ]));
-        } else {
-            return ArrayHelper::getValue($result, $hash);
-        }
-    }
-
-    /**
-     * @param string $reference
-     * @return Desensitise|object
-     * @throws InvalidConfigException
-     */
-    protected static function getHandler($reference = null)
-    {
-        if (null === $reference) {
-            $reference = 'desensitise';
-        }
-
-        return Instance::ensure($reference, Desensitise::class);
+        return $result[$hash] ?? false;
     }
 
     /**
      * 加密
-     * @param array $data [plain => type]
-     * @param int $expire
-     * @return array|bool|false
+     *
+     * @param array         $data [[plain, type], [plain, type]]
+     * @param int           $expire
+     * @param callable|null $rejected
+     *
+     * @return array
      * @example
      *  request data: [['62302123512929589', 1]]
      *  response data: [["plain_text": "623**********9589", "hash": "enc_01_100_269"]]
      */
-    public function encrypt(array $data, int $expire = 0)
+    public function encrypt(array $data, int $expire = 0, callable $rejected = null)
     {
         foreach ($data as &$rows) {
-            list($plain, $type) = $rows;
             $rows = [
-                'type'  => $type,
-                'plain' => strval($plain),
+                'type'  => $rows[1],
+                'plain' => strval($rows[0]),
             ];
         }
 
-        $responseData = [];
+        $url = sprintf('encrypt%s/', ($expire > 0 ? '/expire/' . $expire : ''));
 
-        $data = array_chunk($data, 10);
-        foreach ($data as $chunkData) {
-            if ($this->doEncrypt($chunkData, $expire)) {
-                $responseData = array_merge($responseData, $this->getData());
-                continue;
-            }
-
-            return false;
-        }
-
-        return $responseData;
+        return $this->do($url, $data, $rejected);
     }
 
     /**
      * 解码
-     * @param mixed $data
-     * @param bool $plain
-     * @return bool|mixed|null
+     *
+     * @param string|array  $data
+     * @param bool          $plain
+     * @param callable|null $rejected
+     *
+     * @return array
      */
-    public function decrypt($data, $plain = false)
+    public function decrypt($data, $plain = false, callable $rejected = null)
     {
-        $data = (array) $data;
-        foreach ($data as &$hash) {
-            $hash = compact('hash');
-        }
+        $url = 'decrypt/' . ($plain ? 'plain/' : '');
 
-        $responseData = [];
-        $data         = array_chunk($data, 10);
-        foreach ($data as $chunkData) {
-            if ($this->doDecrypt($chunkData, $plain)) {
-                $responseData = array_merge($responseData, $this->getData());
-                continue;
-            }
+        $data = array_map(function ($hash) {
+            return ['hash' => $hash];
+        }, (array)$data);
 
-            return false;
-        }
-
-        return $responseData;
+        return $this->do($url, $data, $rejected);
     }
 
     /**
-     * @param array $data [['type'  => 1, 'plain' => '62302123512929589'], ['type'  => 5, 'plain' => 'xlerr@qq.com'],]
-     * @param int $expire
-     * @return bool
+     * @param string $url
+     * @param array  $data
+     *
+     * @return \Generator
      */
-    public function doEncrypt(array $data, int $expire = 0)
+    protected function makeRequest($url, array $data)
     {
-        $url = 'encrypt';
-        if ($expire > 0) {
-            $url .= '/expire/' . $expire;
+        $data = array_chunk($data, 10);
+        foreach ($data as $set) {
+            yield function () use ($url, $set) {
+                return $this->client->postAsync($url, [
+                    RequestOptions::JSON        => $set,
+                    RequestOptions::HTTP_ERRORS => true,
+                ]);
+            };
         }
-
-        return $this->post($url . '/', [
-            RequestOptions::JSON => $data,
-        ]);
     }
 
     /**
-     * @param array $data [['hash' => 'enc_01_803680_269'], ['hash' => 'enc_05_12448700_154']]
-     * @param bool $plain
-     * @return bool
+     * @param string        $url
+     * @param array         $data
+     * @param callable|null $rejected
+     *
+     * @return array
      */
-    public function doDecrypt(array $data, $plain = false)
+    protected function do($url, array $data, callable $rejected = null)
     {
-        $url = 'decrypt';
-        if ($plain) {
-            $url .= '/plain';
+        $resultSet = [];
+
+        $requests = $this->makeRequest($url, $data);
+
+        $pool = new Pool($this->client, $requests, [
+            'fulfilled' => function (Response $response, $index) use (&$resultSet, $rejected) {
+                $responseRaw = (string)$response->getBody();
+                $result      = array_merge([
+                    'code'    => self::FAILURE,
+                    'message' => '返回值格式错误: ' . $responseRaw,
+                    'data'    => [],
+                ], (array)json_decode($responseRaw, true));
+                if ($result['code'] === self::SUCCESS) {
+                    $resultSet[$index] = (array)$result['data'];
+                } elseif ($rejected) {
+                    $rejected($result, $index);
+                }
+            },
+            'rejected'  => function (RequestException $reason, $index) use ($rejected) {
+                $rejected && $rejected([
+                    'code'      => $reason->getCode(),
+                    'message'   => $reason->getMessage(),
+                    'exception' => $reason,
+                ], $index);
+            },
+        ]);
+
+        $promise = $pool->promise();
+        $promise->wait();
+
+        if (empty($resultSet)) {
+            return $resultSet;
         }
 
-        return $this->post($url . '/', [
-            RequestOptions::JSON => $data,
-        ]);
+        ksort($resultSet);
+
+        return array_merge(...$resultSet);
     }
 }

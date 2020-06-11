@@ -2,13 +2,11 @@
 
 namespace xlerr\desensitise;
 
-use Yii;
 use yii\base\Behavior;
 use yii\base\InvalidConfigException;
 use yii\base\ModelEvent;
 use yii\base\UserException;
 use yii\db\ActiveRecord;
-use yii\helpers\ArrayHelper;
 
 class DesensitiseBehavior extends Behavior
 {
@@ -27,6 +25,7 @@ class DesensitiseBehavior extends Behavior
 
     /**
      * @param ModelEvent $event
+     *
      * @throws EncryptException
      * @throws InvalidConfigException
      */
@@ -38,7 +37,7 @@ class DesensitiseBehavior extends Behavior
         $desensitiseMapping = array_intersect_key($sender->getDirtyAttributes(), $this->config);
 
         $desensitiseAttributes = [];
-        $encryptData = [];
+        $encryptData           = [];
 
         foreach ($desensitiseMapping as $attribute => $value) {
             $value = trim((string)$value);
@@ -52,15 +51,12 @@ class DesensitiseBehavior extends Behavior
         }
 
         if (!empty($encryptData)) {
-            /** @var Desensitise $desensitise */
-            $desensitise = Yii::$app->get('desensitise');
-            if ($result = $desensitise->encrypt($encryptData)) {
-                foreach ($desensitiseAttributes as $i => $attribute) {
-                    $sender->setAttribute($attribute, ArrayHelper::getValue($result, [$i, 'hash']));
-                }
-            } else {
+            $result = Desensitise::instance()->encrypt($encryptData, 0, function ($response) use ($event) {
                 $event->isValid = false;
-                throw new EncryptException('脱敏失败: ' . $desensitise->getError());
+                throw new EncryptException('脱敏失败: ' . $response['message']);
+            });
+            foreach ($desensitiseAttributes as $i => $attribute) {
+                $sender->setAttribute($attribute, $result[$i]['hash']);
             }
         }
     }
@@ -74,20 +70,17 @@ class DesensitiseBehavior extends Behavior
     public function decrypt($plain = true)
     {
         /** @var ActiveRecord $sender */
-        $sender = $this->owner;
+        $sender     = $this->owner;
         $attributes = $sender->getAttributes(array_keys($this->config));
         $attributes = array_filter($attributes);
 
         if (!empty($attributes)) {
-            /** @var Desensitise $desensitise */
-            $desensitise = Yii::$app->get('desensitise');
-            $result      = $desensitise->decrypt(array_values($attributes), $plain);
-            if (!$result) {
-                throw new UserException($desensitise->getError());
-            }
+            $result = Desensitise::instance()->decrypt(array_values($attributes), $plain, function ($response) {
+                throw new EncryptException($response['message']);
+            });
 
-            foreach ($attributes as $field => $cipherText) {
-                $sender->setAttribute($field, ArrayHelper::getValue($result, $cipherText));
+            foreach ($attributes as $field => $hash) {
+                $sender->setAttribute($field, $result[$hash]);
             }
         }
     }
