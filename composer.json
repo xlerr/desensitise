@@ -10,7 +10,7 @@
   ],
   "require": {
     "php": ">=7.1",
-    "xlerr/httpca": "^1.1",
+    "xlerr/httpca": ">=1.1.0",
     "yiisoft/yii2": "^2.0"
   },
   "autoload": {
