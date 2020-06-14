@@ -28,13 +28,18 @@ class DesensitiseWidget extends Widget
 
     public function run()
     {
+        if (empty(self::$decryptList[0]) && empty(self::$decryptList[1])) {
+            return;
+        }
+
         $result = [[], []];
-        if (!empty(self::$decryptList)) {
-            foreach (self::$decryptList as $plain => $data) {
-                $result[$plain] += Desensitise::instance()->decrypt($data, $plain, function ($response) {
-                    Yii::$app->getSession()->addFlash('warning', '<b>[脱敏]</b> ' . $response['message']);
-                });
+        foreach (self::$decryptList as $plain => $data) {
+            if (empty($data)) {
+                continue;
             }
+            $result[$plain] += Desensitise::instance()->decrypt($data, $plain, function ($response) {
+                Yii::$app->getSession()->addFlash('warning', '<b>[脱敏]</b> ' . $response['message']);
+            });
         }
         $result = json_encode($result, JSON_UNESCAPED_UNICODE);
 
