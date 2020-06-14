@@ -45,7 +45,7 @@ class DesensitiseWidget extends Widget
         const self = $(this);
         let dck = self.data('dck'),
             plain = self.data('plain');
-        if (undefined !== dcs[plain] && undefined !== dcs[plain][dck]) {
+        if (undefined !== dcs[plain][dck]) {
             self.text(dcs[plain][dck]);
         }
     });
